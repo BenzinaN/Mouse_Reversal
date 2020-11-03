@@ -1,0 +1,1945 @@
+\ Tâche de reversal learning probabilistique avec training inclus pour souris en mode "tu te démerdes"
+\ Par Nabil BENZINA
+
+\ Les inputs
+^levierG = 2 \ touchscreen/levier gauche
+^levierD = 3 \ touchscreen/levier droit
+^head = 1
+
+\ Les outputs
+^redlight = 9
+^blink = 2
+^fig1G = 3
+^fig2G = 4
+^fig1D = 5
+^fig2D = 6
+^reward = 1
+\ ^levierGout = 9
+\ ^levierDout = 10
+^light = 7
+
+
+
+\ Les Z pulses
+^reinit = 7
+^fin = 2
+^phase1 = 3
+^phase2 = 4
+^phase3 = 5
+^phase4 = 6
+^finbloc = 1
+^startbloc3 = 8
+^startbloc4 = 9
+^finpause = 10
+^start = 11
+^save = 12
+^food = 13
+
+DISKCOLUMNS = 10
+DISKVARS = C, D, X, E, F, H, I, J, K, L, M, N, P, Q, R, S, T, U, V
+
+DIM A = 8
+DIM B = 31
+DIM C = 36000
+DIM D = 36000
+DIM E = 100
+DIM F = 16
+LIST G = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 1
+DIM H = 85000
+DIM I = 18000
+DIM J = 18000
+DIM K = 36000
+DIM L = 18000
+DIM M = 18000
+DIM N = 19
+LIST O = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 0, 0, 1
+DIM P = 85000
+DIM Q = 18000
+DIM R = 18000
+DIM S = 18000
+DIM T = 36000
+DIM U = 18000
+DIM V = 18000
+DIM W = 36000
+DIM X = 450000
+DIM Y = 36000
+DIM Z = 13
+
+\ ===============================================================================================================================================
+
+VAR_ALIAS Duree de la session en heure = X(11)
+\ Timer de la session = array Z(6 = heures ; 7 = minutes ; 8 = secondes)
+
+\ VAR_ALIAS Delai entre stimulus (LED) et reponse (secondes) = X(8)
+\ Timer du temps de réponse = Z(3)
+
+\ VAR_ALIAS Delai entre reponse et reward (secondes) = X(9)
+\ Timer du temps limite = Z(4)
+
+\ VAR_ALIAS Duree "time out" (secondes) = X(10)
+\ Timer des "time out" = Z(5)
+
+\ VAR_ALIAS Numero de la session pour cette souris = X(1)
+
+VAR_ALIAS Phase de debut = X(0)
+
+\ VAR_ALIAS Prises de reward necessaires pour Phase 2 = X(3)
+
+VAR_ALIAS Etape de debut pour Phase 2 = X(15)
+
+\ VAR_ALIAS Appuis avec prise reward pour Etape 2 Phase 2 = X(4)
+
+VAR_ALIAS Nombre de reversals pour Phase 3 = X(16)
+
+VAR_ALIAS Proba debut par Figure 1 pour Phase 3 ou 4 = X(5)
+
+VAR_ALIAS Scenario de la Phase 4 (Avoid=1 Persev=2) = X(17)
+
+VAR_ALIAS Seuil minimum de pellets distribuees par 24h = X(14)
+
+\ ===============================================================================================================================================
+
+\ L'array X contient les paramètres :
+    \ Phase de début = X(0)
+    \ Numéro de la session (jour) pour cette souris = X(1)
+    \ Nombre de bonnes réponses consécutives pour faire un reversal = X(2)
+    \ Nombre de prises de reward nécessaire pour passer en Phase 2 = X(3)
+    \ Nombre d'appuis consécutifs sur les leviers avec prise du reward nécessaire pour passer en Phase 3 = X(4)
+    \ Probabilité de feedback adéquat = X(6)
+    \ Probabilité de reversal quand critère atteint = X(7)
+    \ Temps d'attente d'une réponse en secondes = X(8)
+    \ Temps limite entre une réponse et la prise de récompense en secondes = X(9)
+    \ Durée des "time out" en secondes = X(10)
+    \ Durée de la session en heures = X(11)
+    \ Nombre de reversals pour phase 3 = X(16)
+    \ Nombre de reversals pour phase 4 = X(12)
+    \ Nombre de rewards distribués dans X(13)
+\ Mais aussi deux index pour le time stamp :
+    \ X(18) = index du temps
+    \ X(19) = index de l'évènement
+\ Et enfin, le time stamp à partir de l'élément X(20) avec pour chaque ligne :
+           \ La seconde où l'évènement s'est produit dans X(X(18)=20, +10, etc...) = 1e colonne
+           \ Le type d'évènement dans X(X(19)=21, +10, etc...) = 2e colonne
+                  \ Code évènement : 1 = visite la mangeoire ; 2 = appui levier gauche ; 3 = appui levier droit
+       \ Toutes les autres colonnes sont useless !!!!!!!!!!!!
+
+\ L'array Z contient les timers suivants :
+    \ Timer des pauses en minutes = Z(0)
+    \ Timer des blocs en minutes = Z(1)
+    \ Timer des phases en minutes = Z(2)
+    \ Timer du temps de réponse en millisecondes = Z(3)
+    \ Timer du temps limite en secondes = Z(4)
+    \ Timer des "time out" en secondes = Z(5)
+    \ Timer du free reward = Z(9)
+    \ Timer du time stamp = Z(10)
+
+\ L'array A contient les binaires (1 = oui ; 0 = non) de caractérisation des erreurs :
+    \ Erreur après feedback erroné = A(0)
+    \ Erreur précédente sur Reversal = A(1)
+    \ Réponse précédente correcte ou non = A(2)
+    \ Feedback précédent adéquat ou non = A(3)
+    \ Début de la phase ou non = A(4)
+    \ Reversal sur ce trial ou non = A(5)
+    \ Correction trial sur essai suivant ou pas = A(6)
+    \ Variable mémoire pour côté du stim correct précédent = A(7)
+
+\ L'array B contient le variables de fonctionnement suivantes :
+    \ B(0) est le compteur de prise dans les temps du reward pour la phase 2
+    \ B(1) est le compteur de prise du reward pour la phase 1
+    \ B(2) est le compteur de réponses correctes successives pour les phases 3 et 4
+    \ B(3) est le compteur de phase
+    \ B(4) est le compteur d'essais depuis le dernier reversal
+    \ B(5) servira à stocker la somme de l'array W ou Y
+    \ B(6) contient l'index de début pour faire la somme
+    \ B(7) = heure ; B(8) = minutes ; B(9) = secondes
+    \ B(10 à 16 et 24 à 26) = index pour l'array E
+    \ B(17) = compteur gauche
+    \ B(18) = compteur droite
+    \ B(19) = index du compteur d'affichage du stim correct à gauche
+    \ B(20) = index du compteur d'affichage du stim correct à droite
+    \ B(21) = compteur d'atteinte du critère en phase 2 étape 3
+    \ B(22) = compteur clignotement LED
+    \ B(23) = compteur de distribution de free rewards
+    \ B(30) = sert à stocker le nombre d'essais corrects sur les 40 derniers
+
+\ W(0) est une variable tampon pour tout et le reste de l'array W est une array tampon pour le reversal
+\ L'array Y est une array tampon pour les compteurs de latéralisation
+
+\ ===============================================================================================================================================
+
+\ L'array E contient les données des phases 1 et 2 :
+
+    \ Durée de la phase 1 en secondes dans E(0) = 1e colonne, 1e ligne
+
+    \ Durée de la phase 2 en secondes dans E(10) = 1e colonne, 2e ligne
+    \ Nombre total d'appuis sur les leviers dans E(11) = 2e colonne, 2e ligne
+    \ Nombre total de rewards distribués dans E(12) = 3e colonne, 2e ligne
+
+    \ Durée en secondes étape 1 dans E(20) = 1e colonne, 3e ligne
+    \ Nombre d'appuis pour l'étape 1 de la phase 2 dans E(21) = 2e colonne, 3e ligne
+    \ Nombre de rewards pris dans les temps pour l'étape 1 de la phase 2 dans E(22) = 3e colonne, 3e ligne
+    \ Nombre de rewards distribués pour l'étape 1 de la phase 2 dans E(23) = 4e colonne, 3e ligne
+
+    \ Durée en secondes étape 2 dans E(30) = 1e colonne, 4e ligne
+    \ Nombre d'appuis pour l'étape 2 de la phase 2 dans E(31) = 2e colonne, 4e ligne
+    \ Nombre de rewards pris dans les temps pour l'étape 2 de la phase 2 dans E(32) = 3e colonne, 4e ligne
+    \ Nombre de rewards distribués pour l'étape 2 de la phase 2 dans E(33) = 4e colonne, 4e ligne
+
+\ ===============================================================================================================================================
+
+\ L'array F contient le total des résultats pour la Phase 3
+    \ 1e ligne :
+        \ Durée de la phase 3 en secondes dans F(0) = 1e colonne
+        \ Temps passé à faire la tâche en secondes F(1) = 2e colonne
+        \ Nombre de blocs dans F(2) = 3e colonne
+        \ Temps moyen de chaque bloc dans F(3) = 4e colonne
+        \ Nombre de pauses dans F(4) = 5e colonne
+        \ Temps moyen de chaque pause dans F(5) = 6e colonne
+        \ Nombre total d'essais dans F(6) = 7e colonne
+        \ Nombre moyen d'essais par bloc dans F(7) = 8e colonne
+        \ Nombre total de reversals dans F(8) = 9e colonne
+        \ Nombre moyen de reversals par bloc dans F(9) = 10e colonne
+    \ 2e ligne
+        \ Temps de réponse moyen dans F(10) = 1e colonne
+        \ Nombre total de réponses correctes dans F(11) = 2e colonne
+        \ Nombre moyen de réponses correctes par bloc dans F(12) = 3e colonne
+        \ Nombre moyen d'erreurs persévératives après reversal dans F(13) = 4e colonne
+        \ Nombre total d'erreurs régressives dans F(14) = 5e colonne
+        \ Nombre moyen d'erreurs régressives par bloc dans F(15) = 6e colonne
+        \ Nombre d'erreurs initiales dans F(16) = 7e colonne
+
+\ L'array G contient tous les index de la phase 3
+
+\ L'array H contient le détail des résultats pour chaque essai avec les éléments 0 à 9 de l'array G comme index, ce pour la Phase 3
+    \ Pour chaque ligne :
+        \ N° Trial dans H(G(0)=0, +10, etc...) = 1e colonne
+            \ Si le n° est suivi de .001, cela signifie qu'il s'agit d'un correction trial !!
+        \ La seconde où le trial a lieu dans H(G(1)=1, +10, etc...) = 2e colonne
+        \ Réponse correcte dans H(G(2)=2, +10, etc...) = 3e colonne
+            \ Code réponse correcte : 1 = verticales et 2 = horizontales
+        \ Position réponse correcte dans H(G(3)=3, +10, etc...) = 4e colonne
+            \ Code position : 1 = gauche et 2 = droite
+        \ Réponse donnée dans H(G(4)=4, +10, etc...) = 5e colonne
+            \ Code réponse donnée : 1 = gauche ; 2 = droite
+        \ Caractère correct ou non de la réponse dans H(G(5)=5, +10, etc...) = 6e colonne
+            \ Code : 0 = réponse fausse ; 1 = réponse bonne
+        \ Temps de réponse dans H(G(6)=6, +10, etc...) = 7e colonne
+        \ Feedback donné dans H(G(7)=7, +10, etc...) = 8e colonne
+            \ Code : toujours 1 car feedback adéquat car déterministe sauf si quand reward, ce dernier non pris dans les temps => 2
+        \ Reversal sur ce trial dans H(G(8)=8, +10, etc...) = 9e colonne
+            \ Code : 0 = pas de reversal ici ; 1 = reversal ici ; 2 = critère atteint lors du précédent essai mais sans reversal
+        \ Nombre d'appui sur le levier après le 1e appui dans H(G(9)=9, +10, etc...) = 10e colonne
+
+\ L'array C contient le nombre d'appui sur les leviers après le 1e appui pour chaque essai avec l'élément 26 de l'array G comme index, ce pour la phase 3
+\ l'élément C(0) contient la moyenne pour la phase !!
+
+\ L'array I contient les infos de chaque bloc avec les éléments 10 à 19 de l'array G comme index, ce pour la phase 3
+    \ Pour chaque ligne :
+        \ N° du bloc dans I(G(10)=0, +10, etc...) = 1e colonne
+        \ Durée du bloc dans I(G(11)=1, +10, etc...) = 2e colonne
+        \ Nombre d'essais dans I(G(12)=2, +10, etc...) = 3e colonne
+        \ Nombre de reversals dans I(G(13)=3, +10, etc...) = 4e colonne
+        \ Nombre de réponses correctes dans I(G(14)=4, +10, etc...) = 5e colonne
+        \ Temps de réponse moyen dans I(G(15)=5, +10, etc...) = 6e colonne
+        \ Nombre moyen d'erreurs persévératives après reversal dans I(G(16)=6, +10, etc...) = 7e colonne
+        \ Nombre d'erreurs régressives dans I(G(17)=7, +10, etc...) = 8e colonne
+        \ 0 dans dans I(G(18)=8, +10, etc...) = 9e colonne qui ne contient aucune donnée!!
+        \ 0 dans dans I(G(19)=9, +10, etc...) = 10e colonne qui ne contient aucune donnée!!
+
+\ L'array J contient le nombre d'erreur qui suit chaque reversal avec l'élement 21 de l'array G comme index, ce pour la phase 3
+\ L'élément 20 de l'array G servira à definir à partir de quel élement de l'array J on fait la moyenne pour le bloc
+\ L'élément J(0) contient la moyenne pour la phase !!
+
+\ L'array K contient le temps de réponse pour chaque essai avec l'élément 23 de l'array G comme index, ce pour la phase 3
+\ L'élément 22 de l'array G servira à definir à partir de quel élement de l'array K on fait la moyenne pour le bloc
+
+\ L'array L contient la durée de chaque pause avec l'élement 24 de l'array G comme index, ce pour la phase 3
+\ L'array M contient la durée de chaque bloc avec l'élement 25 de l'array G comme index, ce pour la phase 3
+
+\ ===============================================================================================================================================
+
+\ L'array N contient le total des résultats pour la Phase 4
+    \ 1e ligne :
+        \ Durée de la phase 4 pour cette session en secondes dans N(0) = 1e colonne
+        \ Temps passés à faire la tâche en secondes N(1) = 2e colonne
+        \ Nombre de blocs dans N(2) = 3e colonne
+        \ Temps moyen de chaque bloc dans N(3) = 4e colonne
+        \ Nombre de pauses dans N(4) = 5e colonne
+        \ Temps moyen de chaque pause dans N(5) = 6e colonne
+        \ Nombre total d'essais dans N(6) = 7e colonne
+        \ Nombre moyen d'essais par bloc dans N(7) = 8e colonne
+        \ Nombre total de reversals dans N(8) = 9e colonne
+        \ Nombre moyen de reversals par bloc dans N(9) = 10e colonne
+    \ 2e ligne
+        \ Nombre total de feedbacks trompeurs dans N(10) = 1e colonne
+        \ Nombre moyen de feedbacks trompeurs par bloc dans N(11) = 2e colonne
+        \ Temps de réponse moyen dans N(12) = 3e colonne
+        \ Nombre total de réponses correctes dans N(13) = 4e colonne
+        \ Nombre moyen de réponses correctes par bloc dans N(14) = 5e colonne
+        \ Nombre moyen d'erreurs persévératives après reversal dans N(15) = 6e colonne
+        \ Nombre moyen d'erreurs après feedback trompeur dans N(16) = 7e colonne
+        \ Nombre total d'erreurs régressives dans N(17) = 8e colonne
+        \ Nombre moyen d'erreurs régressives par bloc dans N(18) = 9e colonne
+        \ Nombre d'erreurs initiales dans N(19) = 10e colonne
+
+\ L'array O contient tous les index de la phase 4
+
+\ L'array P contient le détail des résultats pour chaque essai avec les éléments 0 à 9 de l'array O comme index, ce pour la Phase 4
+    \ Pour chaque ligne :
+        \ N° Trial dans P(O(0)=0, +10, etc...) = 1e colonne
+            \ Si le n° est suivi de .001, cela signifie qu'il s'agit d'un correction trial !!
+        \ La seconde où le trial a lieu dans P(O(1)=1, +10, etc...) = 2e colonne
+        \ Réponse correcte dans P(O(2)=2, +10, etc...) = 3e colonne
+            \ Code réponse correcte : 1 = verticales et 2 = horizontales et 3 = oblique
+        \ Position réponse correcte dans P(O(3)=3, +10, etc...) = 4e colonne
+            \ Code position : 1 = gauche et 2 = droite
+        \ Réponse donnée dans P(O(4)=4, +10, etc...) = 5e colonne
+            \ Code réponse donnée : 1 = gauche ; 2 = droite
+        \ Caractère correct ou non de la réponse dans P(O(5)=5, +10, etc...) = 6e colonne
+            \ Code : 0 = réponse fausse ; 1 = réponse bonne
+        \ Temps de réponse dans P(O(6)=6, +10, etc...) = 7e colonne
+        \ Feedback donné dans P(O(7)=7, +10, etc...) = 8e colonne
+            \ Code : 0 = feedback trompeur ; 1 = feedback adéquat ; 2 = n'a pas pris son reward
+        \ Reversal sur ce trial dans P(O(8)=8, +10, etc...) = 9e colonne
+            \ Code : 0 = pas de reversal ici ; 1 = reversal ici ; 2 = critère atteint lors du précédent essai mais sans reversal
+        \ Nombre d'appui sur le levier après le 1e appui dans P(O(9)=9, +10, etc...) = 10e colonne
+
+\ L'array D contient le nombre d'appui sur les leviers après le 1e appui pour chaque essai avec l'élément 28 de l'array O comme index, ce pour la phase 4
+\ l'élément D(0) contient la moyenne pour la phase !!
+
+\ L'array Q contient les infos de chaque bloc avec les éléments 10 à 19 de l'array O comme index, ce pour la phase 4
+    \ Pour chaque ligne :
+        \ N° du bloc dans Q(O(10)=0, +10, etc...) = 1e colonne
+        \ Durée du bloc dans Q(O(11)=1, +10, etc...) = 2e colonne
+        \ Nombre d'essais dans Q(O(12)=2, +10, etc...) = 3e colonne
+        \ Nombre de reversals dans Q(O(13)=3, +10, etc...) = 4e colonne
+        \ Nombre de feedback trompeur dans Q(O(14)=4, +10, etc...) = 5e colonne
+        \ Nombre de réponses correctes dans Q(O(15)=5, +10, etc...) = 6e colonne
+        \ Temps de réponse moyen dans Q(O(16)=6, +10, etc...) = 7e colonne
+        \ Nombre moyen d'erreurs persévératives après reversal dans Q(O(17)=7, +10, etc...) = 8e colonne
+        \ Nombre moyen d'erreurs après feedback trompeur dans Q(O(18)=8, +10, etc...) = 9e colonne
+        \ Nombre d'erreurs régressives dans Q(O(19)=9, +10, etc...) = 10e colonne
+
+\ L'array R contient le nombre d'erreur qui suit chaque reversal avec l'élement 21 de l'array O comme index, ce pour la phase 4
+\ L'élément 20 de l'array O servira à definir à partir de quel élement de l'array R on fait la moyenne pour le bloc
+\ L'élément R(0) contient la moyenne pour la phase !!
+
+\ L'array S contient le nombre d'erreur qui suit chaque feedback trompeur avec l'élement 23 de l'array O comme index, ce pour la phase 4
+\ L'élément 22 de l'array O servira à definir à partir de quel élement de l'array S on fait la moyenne pour le bloc
+\ L'élément S(0) contient la moyenne pour la phase !!
+
+\ L'array T contient le temps de réponse pour chaque essai avec l'élément 25 de l'array O comme index, ce pour la phase 4
+\ L'élément 24 de l'array O servira à definir à partir de quel élement de l'array T on fait la moyenne pour le bloc
+
+\ L'array U contient la durée de chaque pause avec l'élement 26 de l'array O comme index, ce pour la phase 4
+\ L'array V contient la durée de chaque bloc avec l'élement 27 de l'array O comme index, ce pour la phase 4
+
+\ ===============================================================================================================================================
+
+S.S.1, \ Sélecteur de phase
+
+    S1,
+    0.01" : SET Z(10)=0, A(6)=0, X(5)=100, X(16)=5, X(17)=1, X(18)=20, X(19)=21, X(15)=1, X(14)=25, X(11)=720, X(8)=60, X(9)=15, X(10)=5, X(0)=1, X(1)=1, X(3)=10, X(4)=10, X(6)=100, X(7)=100, X(12)=0, B(10)=20, B(11)=21, B(12)=22, B(13)=23, B(14)=24, B(15)=25, B(16)=26, B(24)=27, B(25)=28, B(26)=29, B(20)=15000 ---> S2
+
+    S2,
+    #START : Z^start ;
+             SHOW 47,Tache terminee ? (1=OUI 0=NON),0 ;
+             SET X(6)=X(6)*100, X(7)=X(7)*100, X(5)=X(5)*100 ---> S4
+
+    \ S3,
+    \ 0.01" : TIME B(7),B(8),B(9) ;
+    \          IF B(7)>=9 [Z^start] ---> S4
+
+    S4,
+    0.01" : SET B(3)=X(0) ;
+             SHOW 4,Phase de debut,X(0) ;
+             IF X(0)=2 [@V, @F]
+             @V : SHOW 6,Pas de phase,1 ---> S5
+             @F : IF X(0)=3 [@V, @F]
+                  @V : SHOW 6,Pas de phase,1, 11,Pas de phase,2 ;
+                       SET E(0)=-987.987 ---> S5
+                  @F : IF X(0)=4 [@V, @F]
+                       @V : SHOW 6,Pas de phase,1, 11,Pas de phase,2, 26,Pas de phase,3 ;
+                            SET E(0)=-987.987, C(0)=-987.987, F(0)=-987.987, H(0)=-987.987, I(0)=-987.987, J(0)=-987.987, K(0)=-987.987, L(0)=-987.987, M(0)=-987.987 ;---> S5
+                       @F : ---> S5
+
+    S5,
+    0.01" : IF B(3)=1 [@V, @F]
+            @V : SHOW 6,Phase,1 ;
+                 Z^phase1 ---> S6
+            @F : IF B(3)=2 [@V, @F]
+                 @V : SHOW 11,Phase,2 ;
+                      Z^phase2 ---> S6
+                 @F : IF B(3)=3 [@V, @F]
+                      @V : SHOW 26,Phase,3 ;
+                           Z^phase3 ---> S6
+                      @F : SHOW 36,Phase,4 ;
+                           Z^phase4 ---> S6
+
+    S6,
+    #Z^reinit : OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D, ^reward ---> S5
+
+S.S.2, \ Phase 1
+
+    S1,
+    #Z^phase1 : ON ^reward ;
+                ADD X(13) ---> S2
+
+    S2,
+    0.05" : OFF ^reward ---> S3
+
+    S3,
+    #R^head : ADD B(1) ;
+              SHOW 8,Nombre de rewards pris,B(1) ;
+              IF Z(6)>=24 [@V, @F]
+              @V : SET E(0)=Z(2) ;
+                   ADD B(3) ;
+                   SHOW 9,Phase terminee ? (1=OUI 0=NON),1 ;
+                   Z^reinit ---> S1
+              @F : SHOW 9,Phase terminee ? (1=OUI 0=NON),0 ---> S4
+
+    S4,
+    5' : IF B(1)>=X(3) [@V, @F]
+            @V : ---> S5
+            @F : ---> S6
+
+    S5,
+    #R^head : ON ^reward ;
+              ADD X(13) ---> S2
+
+    S6,
+    0.05" : ON ^reward ;
+            ADD X(13) ---> S2
+
+S.S.3, \ Phase 2
+
+    S1,
+    0.05" : OFF ^reward ---> SX
+    #Z^phase2 : SET Z(4)=0, A(6)=0, A(5)=0, Z(5)=0, Z(3)=0, A(4)=1, B(4)=0, B(17)=0, B(18)=0, B(19)=0, B(20)=15000 ;
+                IF X(15)=2 [@V, @F]
+                @V : SHOW 16,On saute etape,1, 21,Etape,2, 15,Phase terminee ? (1=OUI 0=NON),0 ---> S2
+                @F : SHOW 16,Etape,1, 15,Phase terminee ? (1=OUI 0=NON),0 ---> S8
+
+    S8,
+    0.05" : ---> S9
+
+    S9,
+    #R^levierD ! #R^levierG : ADD E(21), E(11) ;
+                              ON ^reward, ^blink ;
+                              ADD X(13), E(12), E(23) ;
+                              SHOW 17,Appuis sur les ecrans,E(21), 18,Rewards pris dans les temps,E(22), 19,Nombre de rewards distribues, E(23) ---> S11
+
+    S11,
+    #R^levierD ! #R^levierG : ADD E(21), E(11) ;
+                              SHOW 17,Appuis sur les ecrans,E(21) ---> SX
+    #R^head : ADD B(0), E(22) ;
+              SET Z(4)=0 ;
+              OFF ^reward, ^blink ;
+              SHOW 18,Rewards pris dans les temps,E(22) ;
+              IF B(0)=X(4) [@V, @F]
+              @V : SET B(0)=0 ;
+                   SHOW 16,Duree etape 1,Z(2)/60, 21,Etape,2, 19,Nombre de rewards distribues,E(23) ;
+                   SET E(20)=Z(2) ---> S2
+              @F : SHOW 19,Nombre de rewards distribues,E(23) ---> S9
+    0.01" : SET Z(4)=Z(4)+10 ;
+            IF Z(4) >= 15000 [@V, @F]
+            @V : SET B(0)=0 ;
+                 OFF ^blink ---> S12
+            @F : IF Z(4) >= 50 [OFF ^reward] ---> SX
+
+    S12,
+    #R^levierD ! #R^levierG : ADD E(21), E(11) ;
+                              SHOW 17,Appuis sur les ecrans,E(21) ---> SX
+    #R^head : SET Z(4)=0 ---> S9
+
+    S2,
+    5" : ---> S23
+
+    S23,
+    #R^head : ON ^fig1G, ^fig2G, ^fig1D, ^fig2D, ^blink ---> S3
+
+    S3,
+    #R^levierG : OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D ;
+                 ADD E(11), E(31) ;
+                 SHOW 22,Appuis sur les ecrans,E(31) ---> S4
+    #R^levierD : OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D ;
+                 ADD E(11), E(31) ;
+                 SHOW 22,Appuis sur les ecrans,E(31) ---> S4
+    #R^head : SET Z(3)=0 ---> SX
+    0.01" : SET Z(3)=Z(3)+10 ;
+            IF Z(3)/1000 >= X(8) [@V, @F]
+            @V : SET Z(3)=0 ;
+                 OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D, ^blink ---> S23
+            @F : ---> SX
+
+    S4,
+    #R^levierD ! #R^levierG : ADD E(11), E(31) ;
+                              SHOW 22,Appuis sur les ecrans,E(31) ---> SX
+    #R^head : ON ^reward ;
+              OFF ^blink ;
+              SET Z(4)=0 ;
+              ADD B(0), E(32), E(33), E(12), X(13) ;
+              SHOW 23,Rewards pris dans les temps,E(32) ;
+              IF B(0)=X(4) [@V, @F]
+              @V : SHOW 21,Duree etape 2,(Z(2)-E(20))/60, 24,Nombre de rewards distribues,E(33), 15,Phase terminee ? (1=OUI 0=NON),1 ;
+                   SET E(10)=Z(2), B(0)=0, E(30)=Z(2)-E(20) ;
+                   ADD B(3) ;
+                   Z^reinit ---> S1
+              @F : SHOW 24,Nombre de rewards distribues,E(33) ---> S6
+    0.01" : SET Z(4)=Z(4)+10 ;
+            IF Z(4) >= 15000 [@V, @F]
+            @V : SET Z(4)=0 ;
+                 SET B(0)=0 ;
+                 OFF ^blink ---> S5
+            @F : ---> SX
+
+    S5,
+    #R^levierD ! #R^levierG : ADD E(11), E(31) ;
+                              SHOW 22,Appuis sur les ecrans,E(31) ---> SX
+    #R^head : ON ^reward ;
+              SET Z(4)=0 ;
+              ADD E(33), E(12), X(13) ;
+              SHOW 24,Nombre de rewards distribues,E(33) ---> S6
+    0.01" : SET Z(4)=Z(4)+10 ;
+            IF Z(4) >= 45000 [@V, @F]
+            @V : SET Z(4)=0 ---> S6
+            @F : ---> SX
+
+    S6,
+    0.05" : OFF ^reward ---> S2
+
+S.S.4, \ Phase 3
+
+    S1,
+    #Z^phase3 : SET A(6)=0, A(5)=0, Z(5)=0, Z(3)=0, A(4)=1, B(4)=0, B(17)=0, B(18)=0, B(19)=0, B(20)=15000, B(30)=0 ;
+                SET I(G(10))=1, I(G(10)+10)=-987.987, H(G(8))=0, F(2)=1 ;
+                SHOW 35,Pas encore de reversal fait...,0 ;
+        WITHPI = X(5) [@fig1, @fig2] \ X% de chances que la 1e réponse correcte soit Fig.1
+                @fig1 : SET H(G(2))=1 ---> S2
+                @fig2 : SET H(G(2))=2 ---> S2
+
+    S2,
+    5" : ---> S22
+
+    S22,
+    #R^head : SET Z(3)=0 ---> S3
+    1" : ADD Z(3) ;
+         IF Z(3) >= X(8)*2 [SET Z(3)=0 ; Z^finbloc] ---> S11
+
+    S3,
+    0.01" : ADD F(6), I(G(12)), B(4) ;
+            SET H(G(0))=F(6), H(G(1))=Z(10), Z(3)=0, H(G(7))=1, C(G(26))=0 ;
+            IF A(6)=1 [@V, @F]
+        @V : SET H(G(0))=H(G(0))+0.001, H(G(3))=A(7) ;
+         IF ((H(G(2))=1) AND (H(G(3))=1)) OR ((H(G(2))=2) AND (H(G(3))=2)) [@V, @F]
+                 @V : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1G, ^fig2D ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                 @F : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1D, ^fig2G ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1D, ^fig2G ---> S4
+        @F : ADD B(19), B(20) ;
+             WITHPI = 5000 [@D, @G] \ 50% de chances que la réponse correcte soit à droite
+                 @D : ADD B(18) ;
+                      SET B(17)=0, Y(B(20))=1, Y(B(19))=0 ;
+                      IF (B(4)-10>=0) [@V, @F]
+                      @V : SET B(6)=B(20)-9 ;
+                           SUMARRAY B(5)=Y,B(6),B(20) ;
+                           IF (B(5)>7) OR (B(18)>3) [@V, @F]
+                           @V : SET B(18)=0, Y(B(20))=0, Y(B(19))=1 ;
+                                ADD B(17) ;
+                                SET H(G(3))=1 ;
+                                IF ((H(G(2))=1) AND (H(G(3))=1)) OR ((H(G(2))=2) AND (H(G(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1G, ^fig2D ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                 @F : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1D, ^fig2G ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(3))=2 ;
+                                IF ((H(G(2))=1) AND (H(G(3))=1)) OR ((H(G(2))=2) AND (H(G(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1G, ^fig2D ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                 @F : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1D, ^fig2G ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                      @F : IF B(18)>3 [@V, @F]
+                           @V : SET B(18)=0, Y(B(20))=0, Y(B(19))=1 ;
+                                ADD B(17) ;
+                                SET H(G(3))=1 ;
+                                IF ((H(G(2))=1) AND (H(G(3))=1)) OR ((H(G(2))=2) AND (H(G(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1G, ^fig2D ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                 @F : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1D, ^fig2G ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(3))=2 ;
+                                IF ((H(G(2))=1) AND (H(G(3))=1)) OR ((H(G(2))=2) AND (H(G(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1G, ^fig2D ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                 @F : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1D, ^fig2G ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                 @G : ADD B(17) ;
+                      SET B(18)=0, Y(B(19))=1, Y(B(20))=0 ;
+                      IF (B(4)-10>=0) [@V, @F]
+                      @V : SET B(6)=B(19)-9 ;
+                           SUMARRAY B(5)=Y,B(6),B(19) ;
+                           IF (B(5)>7) OR (B(17)>3) [@V, @F]
+                           @V : SET B(17)=0, Y(B(20))=1, Y(B(19))=0 ;
+                                ADD B(18) ;
+                                SET H(G(3))=2 ;
+                                IF ((H(G(2))=1) AND (H(G(3))=1)) OR ((H(G(2))=2) AND (H(G(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1G, ^fig2D ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                 @F : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1D, ^fig2G ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(3))=1 ;
+                                IF ((H(G(2))=1) AND (H(G(3))=1)) OR ((H(G(2))=2) AND (H(G(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1G, ^fig2D ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                 @F : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1D, ^fig2G ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                      @F : IF B(17)>3 [@V, @F]
+                           @V : SET B(17)=0, Y(B(20))=1, Y(B(19))=0 ;
+                                ADD B(18) ;
+                                SET H(G(3))=2 ;
+                                IF ((H(G(2))=1) AND (H(G(3))=1)) OR ((H(G(2))=2) AND (H(G(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1G, ^fig2D ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                 @F : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1D, ^fig2G ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(3))=1 ;
+                                IF ((H(G(2))=1) AND (H(G(3))=1)) OR ((H(G(2))=2) AND (H(G(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1G, ^fig2D ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1G, ^fig2D ---> S4
+                 @F : IF A(5)=1 [@V, @F]
+                      @V : SET H(G(8))=1 ;
+                           ON ^fig1D, ^fig2G ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET H(G(8))=2 ;
+                                ON ^fig1D, ^fig2G ---> S4
+                           @F : SET H(G(8))=0 ;
+                                ON ^fig1D, ^fig2G ---> S4
+
+    S4,
+    #R^levierG : SET H(G(6))=Z(3), K(G(23))=Z(3), H(G(4))=1 ;
+                 OFF ^fig1D, ^fig2D ;
+                 IF H(G(3))=H(G(4)) [@V, @F]
+                 @V : ADD F(11), I(G(14)) ;
+                      SET H(G(5))=1, A(1)=0, A(2)=1, A(6)=0, W(B(4))=1 ;
+                      SET A(4)=0 ---> S5
+                 @F : SET A(6)=1, H(G(5))=0, W(B(4))=0 ;
+                      IF A(4)=1 [@V, @F]
+                      @V : ADD F(16) ;
+                           SET A(2)=0 ---> S5
+                      @F : IF A(2)=1 [@V, @F]
+                           @V : IF A(5)=1 [@V, @F]
+                                @V : SET A(1)=1, A(2)=0 ;
+                                     ADD J(G(21)) ---> S5
+                                @F : ADD F(14), I(G(17)) ;
+                                     SET A(2)=0, A(1)=0 ---> S5
+                           @F : IF A(1)=1 [@V, @F]
+                                @V : ADD J(G(21)) ---> S5
+                                @F : ADD F(14), I(G(17)) ---> S5
+    #R^levierD : SET H(G(6))=Z(3), K(G(23))=Z(3), H(G(4))=2 ;
+                 OFF ^fig1G, ^fig2G ;
+                 IF H(G(3))=H(G(4)) [@V, @F]
+                 @V : ADD F(11), I(G(14)) ;
+                      SET H(G(5))=1, A(1)=0, A(2)=1, A(6)=0, W(B(4))=1 ;
+                      SET A(4)=0 ---> S5
+                 @F : SET A(6)=1, H(G(5))=0, W(B(4))=0 ;
+                      IF A(4)=1 [@V, @F]
+                      @V : ADD F(16) ;
+                           SET A(2)=0 ---> S5
+                      @F : IF A(2)=1 [@V, @F]
+                           @V : IF A(5)=1 [@V, @F]
+                                @V : SET A(1)=1, A(2)=0 ;
+                                     ADD J(G(21)) ---> S5
+                                @F : ADD F(14), I(G(17)) ;
+                                     SET A(2)=0, A(1)=0 ---> S5
+                           @F : IF A(1)=1 [@V, @F]
+                                @V : ADD J(G(21)) ---> S5
+                                @F : ADD F(14), I(G(17)) ---> S5
+    #R^head : SET Z(3)=0 ---> SX
+    0.01" : SET Z(3)=Z(3)+10 ;
+            IF Z(3)/1000 >= X(8) [@V, @F]
+            @V : SET Z(3)=0, H(G(0))=-987.987 ;
+                 SUB F(6), I(G(12)), B(4) ;
+                 Z^finbloc ;
+                 OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D ;
+                 IF A(6)=0 [@V, @F]
+                 @V : SUB B(19), B(20) ---> S11
+                 @F : ---> S11
+            @F : ---> SX
+
+    S5,
+    0.01" : SET Z(3)=0 ;
+            IF H(G(5))=0 [@V, @F]
+            @V : ON ^light ;
+         OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D ---> S6
+            @F : OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D ;
+                 ON ^blink ---> S7
+
+    S6,
+    #R^levierG ! #R^levierD : ADD C(G(26)), H(G(9)) ---> SX
+    1" : ADD Z(5) ;
+         IF Z(5)>=X(10) [SET Z(5)=0] ---> S8
+
+    S7,
+    #R^levierG ! #R^levierD : ADD C(G(26)), H(G(9)) ---> SX
+    #R^head : ON ^reward ;
+              OFF ^blink ;
+              ADD X(13) ---> S8
+    1" : ADD Z(4) ;
+         IF Z(4)>=X(9) [SET Z(4)=0, H(G(7))=2, W(B(4))=0 ; Z^finbloc ; OFF ^blink] ---> S8
+
+    S8,
+    0.05" : SET Z(4)=0 ;
+            OFF ^reward, ^light ;
+            IF (B(4)-40>=0) [@V, @F]
+            @V : SET B(6)=B(4)-39 ;
+                 SUMARRAY B(30)=W,B(6),B(4) ;
+                 IF B(30)>=32 [@V, @F]
+                 @V : WITHPI = X(7) [@V, @F]
+                      @V : SET A(5)=1 ---> S9
+                      @F : SET A(5)=2 ---> S9
+                 @F : SET A(5)=0 ---> S9
+            @F : SET A(5)=0 ---> S9
+
+    S9,
+    0.01" : ARITHMETICMEAN F(10)=K,0,G(23), C(0)=C,1,G(26) ;
+            ADD G(26), G(23) ;
+            SET G(0)=G(0)+10, G(1)=G(1)+10, G(4)=G(4)+10, G(5)=G(5)+10, G(6)=G(6)+10, G(8)=G(8)+10, G(9)=G(9)+10 ;
+            SET A(7)=H(G(3)), G(3)=G(3)+10 ;
+            SET F(7)=F(6)/F(2), F(9)=F(8)/F(2), F(12)=F(11)/F(2), F(15)=F(14)/F(2), H(G(0))=-987.987, C(G(26))=-987.987, K(G(23))=-987.987 ;
+            IF A(5)=1 [@V, @F]
+            @V : SHOW 35,Dernier reversal fait au trial,F(6)+1 ;
+         ADD F(8), I(G(13)), G(21) ;
+                 SET B(4)=0, B(19)=0, B(20)=15000, J(G(21))=0, J(G(21)+1)=-987.987 ;
+                 IF H(G(2))=1 [@V, @F]
+                 @V : SET G(2)=G(2)+10, H(G(2))=2 ---> S10
+                 @F : SET G(2)=G(2)+10, H(G(2))=1 ---> S10
+            @F : SET W(0)=H(G(2)), G(2)=G(2)+10, H(G(2))=W(0) ---> S10
+
+    S10,
+    0.01" : IF H(G(7))=2 [@V, @F]
+            @V : SET G(7)=G(7)+10 ;
+                 IF G(21)>=1 [@V; @F]
+                 @V : ARITHMETICMEAN J(0)=J,1,G(21) ;
+                      SET F(13)=J(0) ;
+                      IF F(8)>X(16) [@V, @F]
+                      @V : SET F(0)=Z(2) ;
+                           ADD B(3) ;
+                           SHOW 30,Phase terminee ? (1=OUI 0=NON),1 ;
+                           Z^reinit ---> S1
+                      @F : SHOW 30,Phase terminee ? (1=OUI 0=NON),0 ---> S11
+                 @F : SHOW 30,Phase terminee ? (1=OUI 0=NON),0 ---> S11
+            @F : SET G(7)=G(7)+10 ;
+                 IF G(21)>=1 [@V; @F]
+                 @V : ARITHMETICMEAN J(0)=J,1,G(21) ;
+                      SET F(13)=J(0) ;
+                      IF F(8)>X(16) [@V, @F]
+                      @V : SET F(0)=Z(2) ;
+                           ADD B(3) ;
+                           SHOW 30,Phase terminee ? (1=OUI 0=NON),1 ;
+                           Z^reinit ---> S1
+                      @F : SHOW 30,Phase terminee ? (1=OUI 0=NON),0 ---> S2
+                 @F : SHOW 30,Phase terminee ? (1=OUI 0=NON),0 ---> S2
+
+    S11,
+    0.01" : SET Z(3)=0, I(G(11))=Z(1), M(G(25))=Z(1), G(22)=G(23)-I(G(12)), G(20)=G(21)-I(G(13))+1 ;
+            ADD F(4) ;
+            ARITHMETICMEAN I(G(15))=K,G(22),G(23)-1, F(3)=M,0,G(25) ;
+            SUMARRAY F(1)=M,0,G(25) ;
+            IF G(21)>=1 [@V, @F]
+            @V : ARITHMETICMEAN I(G(16))=J,G(20),G(21) ---> S12
+            @F : ---> S12
+
+    S12,
+    #R^head : Z^finpause ;
+              Z^startbloc3 ;
+              SET L(G(24))=Z(0), G(10)=G(10)+10, G(11)=G(11)+10, G(12)=G(12)+10, G(13)=G(13)+10, G(14)=G(14)+10 ;
+              SET G(15)=G(15)+10, G(16)=G(16)+10, G(17)=G(17)+10, G(18)=G(18)+10, G(19)=G(19)+10 ;
+              ARITHMETICMEAN F(5)=L,0,G(24) ;
+              ADD F(2), G(24), G(25) ;
+              SET I(G(10))=F(2), I(G(10)+10)=-987.987, M(G(25))=-987.987, L(G(24))=-987.987 ---> S3
+
+S.S.5, \ Phase 4
+
+    S1,
+    #Z^phase4 : SET A(6)=0, A(5)=0, Z(5)=0, Z(3)=0, A(4)=1, A(3)=1, B(4)=0, B(17)=0, B(18)=0, B(19)=0, B(20)=15000, B(30)=0 ;
+                SET Q(O(10))=1, W(0)=O(10)+10, Q(W(0))=-987.987, N(2)=1, P(O(8))=0 ;
+                SHOW 45,Pas encore de reversal fait...,0 ;
+                IF X(0)=4 [@V, @F]
+                       @V :WITHPI = X(5) [@fig1, @fig2] \ X% de chances que la 1e réponse correcte soit Fig.1
+                           @fig1 : SET P(O(2))=1 ---> S2
+                           @fig2 : SET P(O(2))=2 ---> S2
+                       @F : SET P(O(2))=H(G(2)) ---> S2
+
+    S2,
+    5" : ---> S22                                              
+
+    S22,
+    #R^head : SET Z(3)=0 ;
+           IF X(17)=1 [@V, @F]
+          @V : ---> S3
+          @F : ---> S32
+    1" : ADD Z(3) ;
+         IF Z(3) >= X(8)*2 [SET Z(3)=0 ; Z^finbloc] ---> S11
+
+    S3,
+    0.01" : ADD N(6), Q(O(12)), B(4) ;
+            SET P(O(0))=N(6), P(O(1))=Z(10), Z(3)=0, D(O(28))=0 ;
+            IF A(6)=1 [@V, @F]
+            @V : SET P(O(0))=P(O(0))+0.001, P(O(3))=A(7) ;
+                 IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                 @V : IF A(5)=1 [@V, @F]
+                      @V : SET P(O(8))=1 ;
+                           IF P(O(2))=1 [@V, @F]
+                           @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                           @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET P(O(8))=2 ;
+                                IF P(O(2))=1 [@V, @F]
+                                @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                    @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                           @F : SET P(O(8))=0 ;
+                                IF P(O(2))=1 [@V, @F]
+                                @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                    @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                 @F : IF A(5)=1 [@V, @F]
+                      @V : SET P(O(8))=1 ;
+                           IF P(O(2))=1 [@V, @F]
+                           @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                           @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET P(O(8))=2 ;
+                                IF P(O(2))=1 [@V, @F]
+                                @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                           @F : SET P(O(8))=0 ;
+                                IF P(O(2))=1 [@V, @F]
+                                @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+            @F : ADD B(19), B(20) ;
+                 WITHPI = 5000 [@D, @G] \ 50% de chances que la réponse correcte soit à droite
+                 @D : ADD B(18) ;
+                      SET B(17)=0, Y(B(20))=1, Y(B(19))=0 ;
+                      IF (B(4)-10>=0) [@V, @F]
+                      @V : SET B(6)=B(20)-9 ;
+                           SUMARRAY B(5)=Y,B(6),B(20) ;
+                           IF (B(5)>7) OR (B(18)>3) [@V, @F]
+                           @V : SET B(18)=0, Y(B(20))=0, Y(B(19))=1 ;
+                                ADD B(17) ;
+                                SET P(O(3))=1 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                              @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                         @V : SET P(O(8))=2 ;
+                                              IF P(O(2))=1 [@V, @F]
+                                              @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                  @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                         @F : SET P(O(8))=0 ;
+                                              IF P(O(2))=1 [@V, @F]
+                                              @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                  @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                          @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                           @F : SET P(O(3))=2 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                              @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                          @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                      @F : IF B(18)>3 [@V, @F]
+                           @V : SET B(18)=0, Y(B(20))=0, Y(B(19))=1 ;
+                                ADD B(17) ;
+                                SET P(O(3))=1 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                              @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                          @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                           @F : SET P(O(3))=2 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                              @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                          @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                 @G : ADD B(17) ;
+                      SET B(18)=0, Y(B(19))=1, Y(B(20))=0 ;
+                      IF (B(4)-10>=0) [@V, @F]
+                      @V : SET B(6)=B(19)-9 ;
+                           SUMARRAY B(5)=Y,B(6),B(19) ;
+                           IF (B(5)>7) OR (B(17)>3) [@V, @F]
+                           @V : SET B(17)=0, Y(B(20))=1, Y(B(19))=0 ;
+                                ADD B(18) ;
+                                SET P(O(3))=2 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                              @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                          @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                           @F : SET P(O(3))=1 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                              @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                          @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                      @F : IF B(17)>3 [@V, @F]
+                           @V : SET B(17)=0, Y(B(20))=1, Y(B(19))=0 ;
+                                ADD B(18) ;
+                                SET P(O(3))=2 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                              @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                          @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                           @F : SET P(O(3))=1 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                              @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2D, ^fig1D ---> S4
+                                   @F : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                          @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2G, ^fig1G ---> S4
+                                               @F : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+
+    S32,
+    0.01" : ADD N(6), Q(O(12)), B(4) ;
+            SET P(O(0))=N(6), P(O(1))=Z(10), Z(3)=0, D(O(28))=0 ;
+            IF A(6)=1 [@V, @F]
+            @V : SET P(O(0))=P(O(0))+0.001, P(O(3))=A(7) ;
+                 IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                 @V : IF A(5)=1 [@V, @F]
+                      @V : SET P(O(8))=1 ;
+                           IF P(O(2))=1 [@V, @F]
+                           @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+               @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET P(O(8))=2 ;
+                                IF P(O(2))=1 [@V, @F]
+                                @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                    @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                           @F : SET P(O(8))=0 ;
+                                IF P(O(2))=1 [@V, @F]
+                                @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                    @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                 @F : IF A(5)=1 [@V, @F]
+                      @V : SET P(O(8))=1 ;
+                           IF P(O(2))=1 [@V, @F]
+                           @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                           @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                      @F : IF A(5)=2 [@V, @F]
+                           @V : SET P(O(8))=2 ;
+                                IF P(O(2))=1 [@V, @F]
+                                @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                           @F : SET P(O(8))=0 ;
+                                IF P(O(2))=1 [@V, @F]
+                                @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+            @F : ADD B(19), B(20) ;
+                 WITHPI = 5000 [@D, @G] \ 50% de chances que la réponse correcte soit à droite
+                 @D : ADD B(18) ;
+                      SET B(17)=0, Y(B(20))=1, Y(B(19))=0 ;
+                      IF (B(4)-10>=0) [@V, @F]
+                      @V : SET B(6)=B(20)-9 ;
+                           SUMARRAY B(5)=Y,B(6),B(20) ;
+                           IF (B(5)>7) OR (B(18)>3) [@V, @F]
+                           @V : SET B(18)=0, Y(B(20))=0, Y(B(19))=1 ;
+                                ADD B(17) ;
+                                SET P(O(3))=1 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                              @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                              IF P(O(2))=1 [@V, @F]
+                                              @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                  @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                   @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                           @F : SET P(O(3))=2 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                              @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                              IF P(O(2))=1 [@V, @F]
+                                              @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                  @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                   @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                      @F : IF B(18)>3 [@V, @F]
+                           @V : SET B(18)=0, Y(B(20))=0, Y(B(19))=1 ;
+                                ADD B(17) ;
+                                SET P(O(3))=1 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                              @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                              IF P(O(2))=1 [@V, @F]
+                                              @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                  @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                   @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                           @F : SET P(O(3))=2 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                              @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                              IF P(O(2))=1 [@V, @F]
+                                              @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                  @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                   @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                 @G : ADD B(17) ;
+                      SET B(18)=0, Y(B(19))=1, Y(B(20))=0 ;
+                      IF (B(4)-10>=0) [@V, @F]
+                      @V : SET B(6)=B(19)-9 ;
+                           SUMARRAY B(5)=Y,B(6),B(19) ;
+                           IF (B(5)>7) OR (B(17)>3) [@V, @F]
+                           @V : SET B(17)=0, Y(B(20))=1, Y(B(19))=0 ;
+                                ADD B(18) ;
+                                SET P(O(3))=2 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                              @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                              IF P(O(2))=1 [@V, @F]
+                                              @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                  @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                   @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                           @F : SET P(O(3))=1 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                              @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                              IF P(O(2))=1 [@V, @F]
+                                              @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                  @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                   @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                      @F : IF B(17)>3 [@V, @F]
+                           @V : SET B(17)=0, Y(B(20))=1, Y(B(19))=0 ;
+                                ADD B(18) ;
+                                SET P(O(3))=2 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                              @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                              IF P(O(2))=1 [@V, @F]
+                                              @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                  @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                   @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                           @F : SET P(O(3))=1 ;
+                                IF ((P(O(2))=1) AND (P(O(3))=1)) OR ((P(O(2))=2) AND (P(O(3))=2)) [@V, @F]
+                                @V : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                              @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                              IF P(O(2))=1 [@V, @F]
+                                              @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                  @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1G, ^fig2G, ^fig2D ---> S4
+                                   @F : ON ^fig1G, ^fig1D, ^fig2D ---> S4
+                                @F : IF A(5)=1 [@V, @F]
+                                     @V : SET P(O(8))=1 ;
+                                          IF P(O(2))=1 [@V, @F]
+                                          @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                          @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                     @F : IF A(5)=2 [@V, @F]
+                                          @V : SET P(O(8))=2 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+                                          @F : SET P(O(8))=0 ;
+                                               IF P(O(2))=1 [@V, @F]
+                                               @V : ON ^fig1D, ^fig2D, ^fig2G ---> S4
+                                               @F : ON ^fig1D, ^fig1G, ^fig2G ---> S4
+
+    S4,
+    #R^levierG : SET P(O(6))=Z(3), T(O(25))=Z(3), P(O(4))=1 ;
+                 OFF ^fig1D, ^fig2D ;
+                 IF P(O(3))=P(O(4)) [@V, @F]
+                 @V : ADD N(13), Q(O(15)) ;
+                      SET P(O(5))=1, A(1)=0, A(0)=0, A(2)=1, A(6)=0, W(B(4))=1 ;
+                      WITHPI = X(6) [@V, @F]
+                      @V : SET A(4)=0, A(3)=1, P(O(7))=1 ---> S5
+                      @F : ADD O(23), N(10) ;
+                           SET A(3)=0, P(O(7))=0 ---> S5
+                 @F : SET A(6)=1, P(O(5))=0, W(B(4))=0 ;
+                      IF A(4)=1 [@V, @F]
+                      @V : IF A(3)=0 [@V, @F]
+                           @V : SET A(1)=0, A(2)=0, A(4)=0, A(0)=1 ;
+                                ADD S(O(23)) ;
+                                WITHPI = X(6) [@V, @F]
+                                @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                @F : ADD O(23), N(10) ;
+                                     SET P(O(7))=0 ---> S5
+                           @F : ADD N(19) ;
+                                SET A(2)=0, A(1)=0, A(0)=0 ;
+                                WITHPI = X(6) [@V, @F]
+                                @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                @F : ADD O(23), N(10) ;
+                                     SET A(3)=0, P(O(7))=0 ---> S5
+                      @F : IF A(2)=1 [@V, @F]
+                           @V : IF A(5)=1 [@V, @F]
+                                @V : SET A(1)=1, A(2)=0 , A(0)=0 ;
+                                     ADD R(O(21)) ;
+                                     WITHPI = X(6) [@V, @F]
+                                     @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                     @F : ADD O(23), N(10) ;
+                                          SET A(3)=0, P(O(7))=0 ---> S5
+                                @F : IF A(3)=0 [@V, @F]
+                                     @V : SET A(1)=0, A(2)=0, A(0)=1 ;
+                                          ADD S(O(23)) ;
+                                          WITHPI = X(6) [@V, @F]
+                                          @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                          @F : ADD O(23), N(10) ;
+                                               SET A(3)=0, P(O(7))=0 ---> S5
+                                     @F : ADD N(17), Q(O(19)) ;
+                                          SET A(2)=0, A(1)=0, A(0)=0 ;
+                                          WITHPI = X(6) [@V, @F]
+                                          @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                          @F : ADD O(23), N(10) ;
+                                               SET A(3)=0, P(O(7))=0 ---> S5
+                           @F : IF A(1)=1 [@V, @F]
+                                @V : ADD R(O(21)) ;
+                                     WITHPI = X(6) [@V, @F]
+                                     @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                     @F : ADD O(23), N(10) ;
+                                          SET A(3)=0, P(O(7))=0 ---> S5
+                                @F : IF A(0)=1 [@V, @F]
+                                     @V : ADD S(O(23)) ;
+                                          WITHPI = X(6) [@V, @F]
+                                          @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                          @F : ADD O(23), N(10) ;
+                                               SET A(3)=0, P(O(7))=0 ---> S5
+                                     @F : ADD N(17), Q(O(19)) ;
+                                          WITHPI = X(6) [@V, @F]
+                                          @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                          @F : ADD O(23), N(10) ;
+                                               SET A(3)=0, P(O(7))=0 ---> S5
+    #R^levierD : SET P(O(6))=Z(3), T(O(25))=Z(3), P(O(4))=2 ;
+                 OFF ^fig1G, ^fig2G ;
+                 IF P(O(3))=P(O(4)) [@V, @F]
+                 @V : ADD N(13), Q(O(15)) ;
+                      SET P(O(5))=1, A(1)=0, A(0)=0, A(2)=1, A(6)=0, W(B(4))=1 ;
+                      WITHPI = X(6) [@V, @F]
+                      @V : SET A(4)=0, A(3)=1, P(O(7))=1 ---> S5
+                      @F : ADD O(23), N(10) ;
+                           SET A(3)=0, P(O(7))=0 ---> S5
+                 @F : SET A(6)=1, P(O(5))=0, W(B(4))=0 ;
+                      IF A(4)=1 [@V, @F]
+                      @V : IF A(3)=0 [@V, @F]
+                           @V : SET A(1)=0, A(2)=0, A(4)=0, A(0)=1 ;
+                                ADD S(O(23)) ;
+                                WITHPI = X(6) [@V, @F]
+                                @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                @F : ADD O(23), N(10) ;
+                                     SET P(O(7))=0 ---> S5
+                           @F : ADD N(19) ;
+                                SET A(2)=0, A(1)=0, A(0)=0 ;
+                                WITHPI = X(6) [@V, @F]
+                                @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                @F : ADD O(23), N(10) ;
+                                     SET A(3)=0, P(O(7))=0 ---> S5
+                      @F : IF A(2)=1 [@V, @F]
+                           @V : IF A(5)=1 [@V, @F]
+                                @V : SET A(1)=1, A(2)=0 , A(0)=0 ;
+                                     ADD R(O(21)) ;
+                                     WITHPI = X(6) [@V, @F]
+                                     @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                     @F : ADD O(23), N(10) ;
+                                          SET A(3)=0, P(O(7))=0 ---> S5
+                                @F : IF A(3)=0 [@V, @F]
+                                     @V : SET A(1)=0, A(2)=0, A(0)=1 ;
+                                          ADD S(O(23)) ;
+                                          WITHPI = X(6) [@V, @F]
+                                          @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                          @F : ADD O(23), N(10) ;
+                                               SET A(3)=0, P(O(7))=0 ---> S5
+                                     @F : ADD N(17), Q(O(19)) ;
+                                          SET A(2)=0, A(1)=0, A(0)=0 ;
+                                          WITHPI = X(6) [@V, @F]
+                                          @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                          @F : ADD O(23), N(10) ;
+                                               SET A(3)=0, P(O(7))=0 ---> S5
+                           @F : IF A(1)=1 [@V, @F]
+                                @V : ADD R(O(21)) ;
+                                     WITHPI = X(6) [@V, @F]
+                                     @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                     @F : ADD O(23), N(10) ;
+                                          SET A(3)=0, P(O(7))=0 ---> S5
+                                @F : IF A(0)=1 [@V, @F]
+                                     @V : ADD S(O(23)) ;
+                                          WITHPI = X(6) [@V, @F]
+                                          @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                          @F : ADD O(23), N(10) ;
+                                               SET A(3)=0, P(O(7))=0 ---> S5
+                                     @F : ADD N(17), Q(O(19)) ;
+                                          WITHPI = X(6) [@V, @F]
+                                          @V : SET A(3)=1, P(O(7))=1 ---> S5
+                                          @F : ADD O(23), N(10) ;
+                                               SET A(3)=0, P(O(7))=0 ---> S5
+    #R^head : SET Z(3)=0 ---> SX
+    0.01" : SET Z(3)=Z(3)+10 ;
+            IF Z(3)/1000 >= X(8) [@V, @F]
+            @V : SET Z(3)=0, P(O(0))=-987.987 ;
+                 SUB N(6), Q(O(12)), B(4) ;
+                 Z^finbloc ;
+                 OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D ;
+                 IF A(6)=0 [@V, @F]
+                 @V : SUB B(19), B(20) ---> S11
+                 @F : ---> S11
+            @F : ---> SX
+
+    S5,
+    0.01" : SET Z(3)=0 ;
+            IF P(O(5))=0 [@V, @F]
+            @V : IF P(O(7))=1 [@V, @F]
+                 @V : ON ^light ;
+                   OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D ---> S6
+                 @F : OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D ;
+                      ON ^blink ---> S7
+            @F : IF P(O(7))=1 [@V, @F]
+                 @V : OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D ;
+                      ON ^blink ---> S7
+                 @F : ON ^light ;
+                   OFF ^fig1G, ^fig2G, ^fig1D, ^fig2D ---> S6
+
+    S6,
+    #R^levierD ! #R^levierG : ADD D(O(28)), P(O(9)) ---> SX
+    1" : ADD Z(5) ;
+         IF Z(5)>=X(10) [SET Z(5)=0] ---> S8
+
+    S7,
+    #R^levierD ! #R^levierG : ADD D(O(28)), P(O(9)) ---> SX
+    #R^head : ON ^reward ;
+              OFF ^blink ;
+              ADD X(13) ---> S8
+    1" : ADD Z(4) ;
+         IF Z(4)=X(9) [SET Z(4)=0, P(O(7))=2, W(B(4))=0 ; Z^finbloc ; OFF ^blink] ---> S8
+
+    S8,
+    0.05" : SET Z(4)=0 ;
+            OFF ^reward, ^light ;
+            IF (B(4)-40>=0) [@V, @F]
+            @V : SET B(6)=B(4)-39 ;
+                 SUMARRAY B(30)=W,B(6),B(4) ;
+                 IF B(30)>=32 [@V, @F]
+                 @V : WITHPI = X(7) [@V, @F]
+                           @V : SET A(5)=1 ---> S9
+                           @F : SET A(5)=2 ---> S9
+                 @F : SET A(5)=0 ---> S9
+            @F : SET A(5)=0 ---> S9
+
+    S9,
+    0.01" : ARITHMETICMEAN N(12)=T,0,O(25), D(0)=D,1,O(28) ;
+            ADD O(25), O(28) ;
+            SET O(0)=O(0)+10, O(1)=O(1)+10, O(4)=O(4)+10, O(5)=O(5)+10, O(6)=O(6)+10, O(8)=O(8)+10, O(9)=O(9)+10 ;
+            SET A(7)=P(O(3)), O(3)=O(3)+10 ;
+            SET N(7)=N(6)/N(2), N(9)=N(8)/N(2), N(11)=N(10)/N(2), N(14)=N(13)/N(2), N(18)=N(17)/N(2), P(O(0))=-987.987, D(O(28))=-987.987, T(O(25))=-987.987 ;
+            SET S(O(23)+1)=-987.987 ;
+            IF A(5)=1 [@V, @F]
+            @V : SHOW 45,Dernier reversal fait au trial,N(6)+1 ;
+                 ADD N(8), Q(O(13)), O(21) ;
+                 SET B(4)=0, B(19)=0, B(20)=15000, R(O(21))=0, R(O(21)+1)=-987.987 ;
+                 IF P(O(2)) = 1 [@V, @F]
+                 @V : SET O(2)=O(2)+10, P(O(2))=2 ---> S10
+                 @F : SET O(2)=O(2)+10, P(O(2))=1 ---> S10
+            @F : IF X(17)=1 [@V, @F]
+             @V : SET W(0)=P(O(2)), O(2)=O(2)+10, P(O(2))=W(0) ---> S10
+             @F : SET W(0)=P(O(2)), P(O(2))=3, O(2)=O(2)+10, P(O(2))=W(0) ---> S10
+
+    S10,
+    0.01" : IF P(O(7))=2 [@V, @F]
+            @V : SET O(7)=O(7)+10 ;
+                 IF O(21)>=1 [@V; @F]
+                 @V : ARITHMETICMEAN R(0)=R,1,O(21) ;
+                      SET N(15)=R(0) ;
+                      IF O(23)>=1 [@V, @F]
+                      @V : ARITHMETICMEAN S(0)=S,1,O(23) ;
+                           SET N(16)=S(0) ;
+                           IF N(8)>X(12) [@V, @F]
+                           @V : SET N(0)=Z(2) ;
+                                SHOW 40,Phase terminee ? (1=OUI 0=NON),1 ;
+                                Z^fin ---> S1
+                           @F : SHOW 40,Phase terminee ? (1=OUI 0=NON),0 ---> S11
+                      @F : IF N(8)>X(12) [@V, @F]
+                           @V : SET N(0)=Z(2) ;
+                                SHOW 40,Phase terminee ? (1=OUI 0=NON),1 ;
+                                Z^fin ---> S1
+                           @F : SHOW 40,Phase terminee ? (1=OUI 0=NON),0 ---> S11
+                 @F : IF O(23)>=1 [@V, @F]
+                      @V : ARITHMETICMEAN S(0)=S,1,O(23) ;
+                           SET N(16)=S(0) ;
+                           SHOW 40,Phase terminee ? (1=OUI 0=NON),0 ---> S11
+                      @F : SHOW 40,Phase terminee ? (1=OUI 0=NON),0 ---> S11
+            @F : SET O(7)=O(7)+10 ;
+                 IF O(21)>=1 [@V; @F]
+                 @V : ARITHMETICMEAN R(0)=R,1,O(21) ;
+                      SET N(15)=R(0) ;
+                      IF O(23)>=1 [@V, @F]
+                      @V : ARITHMETICMEAN S(0)=S,1,O(23) ;
+                           SET N(16)=S(0) ;
+                           IF N(8)>X(12) [@V, @F]
+                           @V : SET N(0)=Z(2) ;
+                                SHOW 40,Phase terminee ? (1=OUI 0=NON),1 ;
+                                Z^fin ---> S1
+                           @F : SHOW 40,Phase terminee ? (1=OUI 0=NON),0 ---> S2
+                      @F : IF N(8)>X(12) [@V, @F]
+                           @V : SET N(0)=Z(2) ;
+                                SHOW 40,Phase terminee ? (1=OUI 0=NON),1 ;
+                                Z^fin ---> S1
+                           @F : SHOW 40,Phase terminee ? (1=OUI 0=NON),0 ---> S2
+                 @F : IF O(23)>=1 [@V, @F]
+                      @V : ARITHMETICMEAN S(0)=S,1,O(23) ;
+                           SET N(16)=S(0) ;
+                           SHOW 40,Phase terminee ? (1=OUI 0=NON),0 ---> S2
+                      @F : SHOW 40,Phase terminee ? (1=OUI 0=NON),0 ---> S2
+
+    S11,
+    0.01" : SET Z(3)=0, Q(O(11))=Z(1), V(O(27))=Z(1), O(22)=O(23)-Q(O(14))+1, O(20)=O(21)-Q(O(13))+1, O(24)=O(25)-Q(O(16)) ;
+            ADD N(4) ;
+            ARITHMETICMEAN Q(O(16))=T,O(24),O(25)-1, N(3)=V,0,O(27) ;
+            SUMARRAY N(1)=V,0,O(27) ;
+            IF O(21)>=1 [@V, @F]
+            @V : ARITHMETICMEAN Q(O(17))=R,O(20),O(21) ;
+                 IF O(23)>=1 [@V, @F]
+                 @V : ARITHMETICMEAN Q(O(18))=S,O(22),O(23) ---> S12
+                 @F : ---> S12
+            @F : IF O(23)>=1 [@V, @F]
+                 @V : ARITHMETICMEAN Q(O(18))=S,O(22),O(23) ---> S12
+                 @F : ---> S12
+
+    S12,
+    #R^head : Z^finpause ;
+              Z^startbloc4 ;
+              SET U(O(26))=Z(0), O(10)=O(10)+10, O(11)=O(11)+10, O(12)=O(12)+10, O(13)=O(13)+10, O(14)=O(14)+10 ;
+              SET O(15)=O(15)+10, O(16)=O(16)+10, O(17)=O(17)+10, O(18)=O(18)+10, O(19)=O(19)+10 ;
+              ARITHMETICMEAN N(5)=U,0,O(26) ;
+              ADD N(2), O(27), O(26) ;
+              SET Q(O(10))=N(2), Q(O(10)+10)=-987.987, U(O(26))=-987.987, V(O(27))=-987.987 ;
+              IF X(17)=1 [@V, @F]
+              @V : ---> S3
+              @F : ---> S32
+
+S.S.6, \ Zone du timer principal
+
+    S1,
+    #Z^start : ---> S2
+
+    S2,
+    1" : ADD Z(8) ;
+         SHOW 5,Nombre de rewards distribues pour toute la session,X(13) ;
+         IF Z(8)=60 [@V, @F]
+         @V : ADD Z(7) ;
+              SET Z(8)=0 ;
+              IF Z(7)=60 [@V, @F]
+              @V : ADD Z(6) ;
+                   Z^food ;
+                   SET Z(7)=0 ;
+                   SHOW 1,Chrono de la session : Heures,Z(6), 2,Minutes,Z(7), 3,Secondes,Z(8) ;
+                   IF Z(6)=X(11) [@V, @F]
+                   @V : Z^fin ---> S1
+                   @F : Z^save ---> SX
+              @F : SHOW 1,Chrono de la session : Heures,Z(6), 2,Minutes,Z(7), 3,Secondes,Z(8) ;
+                   IF Z(6)=X(11) [Z^fin] ---> S1
+         @F : SHOW 1,Chrono de la session : Heures,Z(6), 2,Minutes,Z(7), 3,Secondes,Z(8) ;
+              IF Z(6)=X(11) [Z^fin] ---> S1
+
+S.S.7, \ Zone des timers de phases
+
+    S1,
+    #Z^phase1 : SET Z(2)=0 ---> S2
+    #Z^phase2 : SET Z(2)=0 ---> S3
+    #Z^phase3 : SET Z(2)=0 ---> S4
+    #Z^phase4 : SET Z(2)=0 ---> S5
+
+    S2, \ Timer phase 1
+    #Z^reinit : ---> S1
+    1" : ADD Z(2) ;
+         SET E(0)=Z(2) ;
+         SHOW 7,Dans la phase depuis (minute),Z(2)/60 ---> SX
+
+    S3, \ Timer phase 2
+    #Z^reinit : ---> S1
+    1" : ADD Z(2) ;
+         SET E(10)=Z(2) ;
+         SHOW 12,Dans la phase depuis (minute),Z(2)/60, 13,Nombre total appuis sur les ecrans,E(11), 14,Nombre total de rewards distribues,E(12) ---> SX
+
+    S4, \ Timer phase 3
+    #Z^reinit : ---> S1
+    1" : ADD Z(2) ;
+         SET F(0)=Z(2) ;
+         SHOW 27,Dans la phase depuis (minute),Z(2)/60, 28,Bloc,F(2), 29,Essai,F(6), 31,Temps de travail effectif (minute),F(1)/60, 32,Reversals faits,F(8), 33,Temps de reponse moyen en ms,F(10), 34,Essais corrects sur les 40 derniers,B(30) ---> SX
+
+    S5, \ Timer phase 4
+    #Z^fin : ---> S1
+    1" : ADD Z(2) ;
+         SET N(0)=Z(2) ;
+         SHOW 37,Dans la phase depuis (minute),Z(2)/60, 38,Bloc,N(2), 39,Essai,N(6), 41,Temps de travail effectif (minute),N(1)/60, 42,Reversals faits,N(8), 43,Temps de reponse moyen en ms,N(12), 44,Essais corrects sur les 40 derniers,B(30) ---> SX
+
+S.S.8, \ Zone des timers de blocs
+
+    S1,
+    #Z^phase3 ! #Z^startbloc3 : SET Z(1)=0 ---> S2
+    #Z^phase4 ! #Z^startbloc4 : SET Z(1)=0 ---> S3
+
+    S2, \ Timer des blocs de la phase 3
+    #Z^finbloc ! #Z^reinit : ---> S1
+    1" : ADD Z(1), F(1) ---> SX
+
+    S3, \ Timer des blocs de la phase 4
+    #Z^finbloc ! #Z^fin : ---> S1
+    1" : ADD Z(1), N(1) ---> SX
+
+S.S.9, \ Zone du timer de pauses
+
+    S1,
+    #Z^finbloc : SET Z(0)=0 ---> S2
+
+    S2,
+    #Z^finpause : ---> S1
+    1" : ADD Z(0) ---> SX
+
+S.S.10, \ This is the end !!!!!! (or not...)
+
+    S1,
+    #K1 : ---> S2
+    #Z^fin : ---> S4
+    #K2 ! #Z^save : ---> S3
+
+    S2,
+    30" : IF (B(3)=1) [@V, @F]
+          @V : SET E(0)=Z(2), E(10)=-987.987, C(0)=-987.987, D(0)=-987.987, F(0)=-987.987, H(0)=-987.987, I(0)=-987.987, J(0)=-987.987, K(0)=-987.987, L(0)=-987.987, M(0)=-987.987 ;
+               SET N(0)=-987.987, P(0)=-987.987, Q(0)=-987.987, R(0)=-987.987, S(0)=-987.987, T(0)=-987.987, U(0)=-987.987, V(0)=-987.987 ---> STOPABORTFLUSH
+          @F : IF (B(3)=2) [@V, @F]
+               @V : SET E(10)=Z(2), E(34)=-987.987, C(0)=-987.987, D(0)=-987.987, F(0)=-987.987, H(0)=-987.987, I(0)=-987.987, J(0)=-987.987, K(0)=-987.987, L(0)=-987.987, M(0)=-987.987 ;
+                    SET N(0)=-987.987, P(0)=-987.987, Q(0)=-987.987, R(0)=-987.987, S(0)=-987.987, T(0)=-987.987, U(0)=-987.987, V(0)=-987.987 ---> STOPABORTFLUSH
+               @F : IF B(3)=3 [@V, @F]
+                    @V : SET E(34)=-987.987, F(0)=Z(2), D(0)=-987.987, N(0)=-987.987, P(0)=-987.987, Q(0)=-987.987, R(0)=-987.987, S(0)=-987.987, T(0)=-987.987, U(0)=-987.987, V(0)=-987.987 ;
+                         SET C(G(26)+1)=-987.987, H(G(0)+10)=-987.987, I(G(10)+10)=-987.987, J(G(21)+1)=-987.987, K(G(23)+1)=-987.987, L(G(24)+1)=-987.987, M(G(25)+1)=-987.987 ---> STOPABORTFLUSH
+                    @F : SET E(34)=-987.987, N(0)=Z(2), C(G(26)+1)=-987.987, H(G(0)+10)=-987.987, I(G(10)+10)=-987.987, J(G(21)+1)=-987.987, K(G(23)+1)=-987.987, L(G(24)+1)=-987.987, M(G(25)+1)=-987.987 ;
+                         SET D(O(28)+1)=-987.987, P(O(0)+10)=-987.987, Q(O(10)+10)=-987.987, R(O(21)+1)=-987.987, S(O(23)+1)=-987.987, T(O(25)+1)=-987.987, U(O(26)+1)=-987.987, V(O(27)+1)=-987.987 ---> STOPABORTFLUSH
+
+    S3,
+    30" : IF (B(3)=1) [@V, @F]
+          @V : SET E(0)=Z(2), E(10)=-987.987, C(0)=-987.987, D(0)=-987.987, F(0)=-987.987, H(0)=-987.987, I(0)=-987.987, J(0)=-987.987, K(0)=-987.987, L(0)=-987.987, M(0)=-987.987 ;
+               SET N(0)=-987.987, P(0)=-987.987, Q(0)=-987.987, R(0)=-987.987, S(0)=-987.987, T(0)=-987.987, U(0)=-987.987, V(0)=-987.987 ;
+               FLUSH ---> S1
+          @F : IF (B(3)=2) [@V, @F]
+               @V : SET E(10)=Z(2), E(34)=-987.987, C(0)=-987.987, D(0)=-987.987, F(0)=-987.987, H(0)=-987.987, I(0)=-987.987, J(0)=-987.987, K(0)=-987.987, L(0)=-987.987, M(0)=-987.987 ;
+                    SET N(0)=-987.987, P(0)=-987.987, Q(0)=-987.987, R(0)=-987.987, S(0)=-987.987, T(0)=-987.987, U(0)=-987.987, V(0)=-987.987 ;
+                    FLUSH ---> S1
+               @F : IF B(3)=3 [@V, @F]
+                    @V : SET E(34)=-987.987, F(0)=Z(2), D(0)=-987.987, N(0)=-987.987, P(0)=-987.987, Q(0)=-987.987, R(0)=-987.987, S(0)=-987.987, T(0)=-987.987, U(0)=-987.987, V(0)=-987.987 ;
+                         SET C(G(26)+1)=-987.987, H(G(0)+10)=-987.987, I(G(10)+10)=-987.987, J(G(21)+1)=-987.987, K(G(23)+1)=-987.987, L(G(24)+1)=-987.987, M(G(25)+1)=-987.987 ;
+                         FLUSH ---> S1
+                    @F : SET E(34)=-987.987, N(0)=Z(2), C(G(26)+1)=-987.987, H(G(0)+10)=-987.987, I(G(10)+10)=-987.987, J(G(21)+1)=-987.987, K(G(23)+1)=-987.987, L(G(24)+1)=-987.987, M(G(25)+1)=-987.987 ;
+                         SET D(O(28)+1)=-987.987, P(O(0)+10)=-987.987, Q(O(10)+10)=-987.987, R(O(21)+1)=-987.987, S(O(23)+1)=-987.987, T(O(25)+1)=-987.987, U(O(26)+1)=-987.987, V(O(27)+1)=-987.987 ;
+                         FLUSH ---> S1
+
+    S4,
+    30" : SHOW 47,Tache terminee ? (1=OUI 0=NON),1 ;
+          ON ^reward ;
+          IF (B(3)=1) [@V, @F]
+          @V : SET E(0)=Z(2), E(10)=-987.987, C(0)=-987.987, D(0)=-987.987, F(0)=-987.987, H(0)=-987.987, I(0)=-987.987, J(0)=-987.987, K(0)=-987.987, L(0)=-987.987, M(0)=-987.987 ;
+               SET N(0)=-987.987, P(0)=-987.987, Q(0)=-987.987, R(0)=-987.987, S(0)=-987.987, T(0)=-987.987, U(0)=-987.987, V(0)=-987.987 ;
+               FLUSH ---> S5
+          @F : IF (B(3)=2) [@V, @F]
+               @V : SET E(10)=Z(2), E(34)=-987.987, C(0)=-987.987, D(0)=-987.987, F(0)=-987.987, H(0)=-987.987, I(0)=-987.987, J(0)=-987.987, K(0)=-987.987, L(0)=-987.987, M(0)=-987.987 ;
+                    SET N(0)=-987.987, P(0)=-987.987, Q(0)=-987.987, R(0)=-987.987, S(0)=-987.987, T(0)=-987.987, U(0)=-987.987, V(0)=-987.987 ;
+                    FLUSH ---> S5
+               @F : IF B(3)=3 [@V, @F]
+                    @V : SET E(34)=-987.987, F(0)=Z(2), D(0)=-987.987, N(0)=-987.987, P(0)=-987.987, Q(0)=-987.987, R(0)=-987.987, S(0)=-987.987, T(0)=-987.987, U(0)=-987.987, V(0)=-987.987 ;
+                         SET C(G(26)+1)=-987.987, H(G(0)+10)=-987.987, I(G(10)+10)=-987.987, J(G(21)+1)=-987.987, K(G(23)+1)=-987.987, L(G(24)+1)=-987.987, M(G(25)+1)=-987.987 ;
+                         FLUSH ---> S5
+                    @F : SET E(34)=-987.987, N(0)=Z(2), C(G(26)+1)=-987.987, H(G(0)+10)=-987.987, I(G(10)+10)=-987.987, J(G(21)+1)=-987.987, K(G(23)+1)=-987.987, L(G(24)+1)=-987.987, M(G(25)+1)=-987.987 ;
+                         SET D(O(28)+1)=-987.987, P(O(0)+10)=-987.987, Q(O(10)+10)=-987.987, R(O(21)+1)=-987.987, S(O(23)+1)=-987.987, T(O(25)+1)=-987.987, U(O(26)+1)=-987.987, V(O(27)+1)=-987.987 ;
+                         FLUSH ---> S5
+
+    S5,
+    0.05" : OFF ^reward ---> S6
+
+    S6,
+    #K1 : ---> S2
+    5' : ---> S7
+
+    S7,
+    #K1 : ---> S2
+    #R^head : ON ^reward ;
+              ADD X(13), Z(11) ;
+              SHOW 49,Nombre de pellets distribuees en attente du retrait,Z(11) ---> S5
+
+S.S.11, \ Timer du free reward
+
+    S1,
+    #Z^food : ADD Z(9) ;
+              IF Z(9)=24 [SET Z(9)=0, B(23)=0] ---> S22
+
+    S22,
+    0.05" : IF (X(13)-Z(12))<=X(14) [@V, @F]
+            @V : SET Z(13)=X(14)-(X(13)-Z(12)) ---> S2
+            @F : SET Z(12)=X(13) ---> S1
+
+    S2,
+    2" : ON ^reward ;
+         ADD B(23), X(13) ---> S3
+
+    S3,
+    0.05" : OFF ^reward ;
+            IF B(23)>=Z(13) [@V, @F]
+            @V : SET Z(12)=X(13) ---> S1
+            @F : ---> S2
+
+S.S.12, \ Timer de la vision nocturne
+
+    S1,
+    1' : TIME B(7),B(8),B(9) ;
+         IF (B(7)>=20) OR (B(7)<=7) [@V, @F]
+         @V : ON ^redlight ---> SX
+         @F : OFF ^redlight ---> SX
+
+S.S.13, \ Time stamp
+
+    S1,
+    0.1" : SET Z(10)=Z(10)+0.1 ---> SX
+    #K3 : SET X(X(18))=Z(10), X(X(19))=4 ;
+         SET X(18)=X(18)+2, X(19)=X(19)+2 ;
+         SET X(X(19)+10)=-987.987 ---> SX
+    #R^levierD : SET X(X(18))=Z(10), X(X(19))=3 ;
+         SET X(18)=X(18)+2, X(19)=X(19)+2 ;
+         SET X(X(19)+10)=-987.987 ---> SX
+    #R^levierG : SET X(X(18))=Z(10), X(X(19))=2 ;
+         SET X(18)=X(18)+2, X(19)=X(19)+2 ;
+         SET X(X(19)+10)=-987.987 ---> SX
+    #R^head : SET X(X(18))=Z(10), X(X(19))=1 ;
+          SET X(18)=X(18)+2, X(19)=X(19)+2 ;
+          SET X(X(19)+10)=-987.987 ---> SX
+
